@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>HW3: SERVER ATTACK SIMULATION</title>
+    <style>
+        canvas {
+            border: none;
+            margin: 0;
+            padding: 0;
+            display: block;
+            box-sizing: border-box;
+        }
+        #chartContainer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #hackerChart {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #stats {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<h1>HW3: SERVER ATTACK SIMULATION</h1>
+<div id="controls">
+    <label for="numHackers">Numero di Hacker: </label>
+    <input type="number" id="numHackers" value="40" min="1" max="100">
+    <label for="numIntervals">Numero di Intervalli Temporali: </label>
+    <input type="number" id="numIntervals" value="100" min="1" max="1000">
+    <label for="Lambda">Tasso di Attacco (Lambda): </label>
+    <input type="number" id="Lambda" value="50" min="0" max="1000" step="0.1">
+    <button onclick="updateGraph()">Aggiorna Grafico</button>
+</div>
+<div id="chartContainer">
+    <canvas id="hackerChart" width="800" height="400"></canvas>
+</div>
+<div id="stats">
+    <p id="meanFinal">Final Step Mean: </p>
+</div>
+
+<script>
+    let hackerCanvas = document.getElementById('hackerChart');
+    let hackerCtx = hackerCanvas.getContext('2d');
+
+    const margins = {
+        top: 30,
+        right: 50,
+        bottom: 30,
+        left: 50
+    };
+
+    let numHackers = parseInt(document.getElementById('numHackers').value);
+    let numIntervals = parseInt(document.getElementById('numIntervals').value);
+    let Lambda = parseFloat(document.getElementById('Lambda').value);
+
+    const hackerColors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'yellow', 'pink', 'brown'];
+    let hackerScores = new Array(numHackers).fill(0);
+
+    function randomProbability() {
+        return Math.random();
+    }
+
+    function drawAxisLabels(ctx, canvas, margins, yLabel) {
+        ctx.fillStyle = 'black';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Intervalli di Tempo', (canvas.width - margins.left - margins.right) / 2 + margins.left, canvas.height - 10);
+
+        ctx.save();
+        ctx.translate(10, (canvas.height - margins.top - margins.bottom) / 2 + margins.top);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText(yLabel, 0, 0);
+        ctx.restore();
+    }
+
+    function drawUnifiedGrid(ctx, canvas, margins) {
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 1;
+
+        for (let i = 0; i <= numIntervals; i++) {
+            const x = margins.left + i * ((canvas.width - margins.left - margins.right) / numIntervals);
+            ctx.beginPath();
+            ctx.moveTo(x, margins.top);
+            ctx.lineTo(x, canvas.height - margins.bottom);
+            ctx.stroke();
+        }
+
+        for (let i = 0; i <= numIntervals; i++) {
+            const y = margins.top + i * ((canvas.height - margins.top - margins.bottom) / numIntervals);
+            ctx.beginPath();
+            ctx.moveTo(margins.left, y);
+            ctx.lineTo(canvas.width - margins.right, y);
+            ctx.stroke();
+        }
+    }
+
+    function drawHackerGraph() {
+        hackerCtx.clearRect(0, 0, hackerCanvas.width, hackerCanvas.height);
+        drawUnifiedGrid(hackerCtx, hackerCanvas, margins);
+        drawAxisLabels(hackerCtx, hackerCanvas, margins, 'Score');
+        hackerScores = new Array(numHackers).fill(0);
+
+        let dt = 1 / numIntervals;
+        let probabilityOfAttack = Lambda * dt;
+
+        for (let hackerIndex = 0; hackerIndex < numHackers; hackerIndex++) {
+            let score = 0;
+            hackerCtx.strokeStyle = hackerColors[hackerIndex % hackerColors.length];
+            hackerCtx.lineWidth = 1.5;
+            hackerCtx.beginPath();
+            hackerCtx.moveTo(margins.left, hackerCanvas.height - margins.bottom);
+
+            for (let interval = 0; interval < numIntervals; interval++) {
+                const prevX = margins.left + (interval * ((hackerCanvas.width - margins.left - margins.right) / numIntervals));
+                const currX = margins.left + ((interval + 1) * ((hackerCanvas.width - margins.left - margins.right) / numIntervals));
+                const prevY = hackerCanvas.height - margins.bottom - ((score) * (hackerCanvas.height - margins.top - margins.bottom) / numIntervals);
+
+                hackerCtx.lineTo(prevX, prevY);
+
+                if (randomProbability() < probabilityOfAttack) {
+                    score++;
+                }
+
+                const currY = hackerCanvas.height - margins.bottom - ((score) * (hackerCanvas.height - margins.top - margins.bottom) / numIntervals);
+                hackerCtx.lineTo(currX, currY);
+            }
+            hackerCtx.stroke();
+            hackerScores[hackerIndex] = score;
+        }
+    }
+
+    function drawHistogram() {
+        const histogramStartX = margins.left + (numIntervals * ((hackerCanvas.width - margins.left - margins.right) / numIntervals));
+        let scoreCounts = new Array(numIntervals + 1).fill(0);
+        hackerScores.forEach(score => {
+            scoreCounts[score]++;
+        });
+
+        for (let score = 0; score <= numIntervals; score++) {
+            const count = scoreCounts[score];
+            if (count > 0) {
+                const barHeight = ((hackerCanvas.height - margins.top - margins.bottom) / numIntervals) - 2;
+                const startY = hackerCanvas.height - margins.bottom - ((score) * (hackerCanvas.height - margins.top - margins.bottom) / numIntervals);
+
+                for (let i = 0; i < count; i++) {
+                    const barX = histogramStartX + i * 10;
+                    hackerCtx.fillStyle = 'green';
+                    hackerCtx.fillRect(barX, startY, 8, barHeight);
+                    hackerCtx.strokeStyle = 'black';
+                    hackerCtx.strokeRect(barX, startY, 8, barHeight);
+                }
+            }
+        }
+    }
+
+    function calculateMean(scores) {
+        const sum = scores.reduce((acc, val) => acc + val, 0);
+        return sum / scores.length;
+    }
+
+    function displayFinalStats() {
+        const mean = calculateMean(hackerScores);
+        document.getElementById('meanFinal').innerText = `Final Step: Mean = ${mean.toFixed(2)}`;
+    }
+
+    function updateGraph() {
+        numHackers = parseInt(document.getElementById('numHackers').value);
+        numIntervals = parseInt(document.getElementById('numIntervals').value);
+        Lambda = parseFloat(document.getElementById('Lambda').value);
+
+        drawHackerGraph();
+        drawHistogram();
+        displayFinalStats();
+    }
+
+    updateGraph();
+</script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>HW2: SERVER ATTACK SIMULATION</title>
+    <style>
+        canvas {
+            border: none;
+            margin: 0;
+            padding: 0;
+            display: block;
+            box-sizing: border-box;
+        }
+        #chartContainer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #hackerChart {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #stats {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>HW2: SERVER ATTACK SIMULATION</h1>
+    <div id="controls">
+        <label for="numHackers">Numero di Hacker: </label>
+        <input type="number" id="numHackers" value="3" min="1" max="100">
+        <label for="numServers">Numero di Server: </label>
+        <input type="number" id="numServers" value="20" min="1" max="100">
+        <label for="hackProbability">Probabilità Fissa: </label>
+        <input type="number" id="hackProbability" value="0.5" min="0" max="1" step="0.01">
+        <label for="histogramPosition"> Steps (1-N): </label>
+        <input type="number" id="histogramPosition" value="10" min="1">
+        <button onclick="updateGraph()">Aggiorna Grafico</button>
+        <button onclick="setFrequencyMode('assoluta')">Frequenza Assoluta</button>
+        <button onclick="setFrequencyMode('relativa')">Frequenza Relativa</button>
+    </div>
+    <div id="chartContainer">
+        <canvas id="hackerChart" width="800" height="400"></canvas>
+    </div>
+    <div id="stats">
+        <p id="meanVarianceStep">Step Mean & Variance: </p>
+        <p id="meanVarianceFinal">Final Step Mean & Variance: </p>
+    </div>
+
+    <script>
+        let hackerCanvas = document.getElementById('hackerChart');
+        let hackerCtx = hackerCanvas.getContext('2d');
+        let currentFrequencyMode = 'assoluta';
+
+        const margins = {
+            top: 30,
+            right: 50,
+            bottom: 30,
+            left: 50
+        };
+
+        let numHackers = parseInt(document.getElementById('numHackers').value);
+        let numServers = parseInt(document.getElementById('numServers').value);
+        let hackProbability = parseFloat(document.getElementById('hackProbability').value);
+
+        const hackerColors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'yellow', 'pink', 'brown'];
+        let hackerScores = new Array(numHackers).fill(0);
+        let hackerScoresAtPosition = new Array(numHackers).fill(0);
+
+        function randomProbability() {
+            return Math.random();
+        }
+
+        function drawAxisLabels(ctx, canvas, margins, yLabel) {
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Numero di Server', (canvas.width - margins.left - margins.right) / 2 + margins.left, canvas.height - margins.bottom + 25);
+
+            ctx.save();
+            ctx.translate(margins.left / 2, (canvas.height - margins.top - margins.bottom) / 2 + margins.top);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText(yLabel, 0, -5);
+            ctx.restore();
+        }
+
+        function drawUnifiedGrid(ctx, canvas, margins) {
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i <= numServers; i++) {
+                const x = margins.left + i * ((canvas.width - margins.left - margins.right) / numServers);
+                ctx.beginPath();
+                ctx.moveTo(x, margins.top);
+                ctx.lineTo(x, canvas.height - margins.bottom);
+                ctx.stroke();
+            }
+
+            for (let i = -numServers; i <= numServers; i++) {
+                const y = margins.top + (numServers - i) * ((canvas.height - margins.top - margins.bottom) / (2 * numServers));
+                ctx.beginPath();
+                ctx.moveTo(margins.left, y);
+                ctx.lineTo(canvas.width - margins.right, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawHackerGraph() {
+            hackerCtx.clearRect(0, 0, hackerCanvas.width, hackerCanvas.height);
+            drawUnifiedGrid(hackerCtx, hackerCanvas, margins);
+            drawAxisLabels(hackerCtx, hackerCanvas, margins, 'Score');
+            hackerScores = new Array(numHackers).fill(0);
+            hackerScoresAtPosition = new Array(numHackers).fill(0);
+
+            const serverAtPosition = Math.min(parseInt(document.getElementById('histogramPosition').value), numServers);
+
+            for (let hackerIndex = 0; hackerIndex < numHackers; hackerIndex++) {
+                let score = 0;
+                hackerCtx.strokeStyle = hackerColors[hackerIndex % hackerColors.length];
+                hackerCtx.lineWidth = 1.5;
+                hackerCtx.beginPath();
+                hackerCtx.moveTo(margins.left, hackerCanvas.height - margins.bottom - ((numServers - score) * (hackerCanvas.height - margins.top - margins.bottom) / (2 * numServers)));
+
+                for (let serverIndex = 1; serverIndex <= numServers; serverIndex++) {
+                    const prevX = margins.left + ((serverIndex - 1) * ((hackerCanvas.width - margins.left - margins.right) / numServers));
+                    const currX = margins.left + (serverIndex * ((hackerCanvas.width - margins.left - margins.right) / numServers));
+                    const prevY = hackerCanvas.height - margins.bottom - ((numServers - score) * (hackerCanvas.height - margins.top - margins.bottom) / (2 * numServers));
+
+                    hackerCtx.lineTo(currX, prevY);
+
+                    if (randomProbability() > hackProbability) {
+                        score++;
+                    } else {
+                        score--;
+                    }
+
+                    const currY = hackerCanvas.height - margins.bottom - ((numServers - score) * (hackerCanvas.height - margins.top - margins.bottom) / (2 * numServers));
+
+                    hackerCtx.lineTo(currX, currY);
+
+                    if (serverIndex === serverAtPosition) {
+                        hackerScoresAtPosition[hackerIndex] = score;
+                    }
+                }
+                hackerCtx.stroke();
+                hackerScores[hackerIndex] = score;
+            }
+        }
+
+        function drawRelativeHackerGraph() {
+            hackerCtx.clearRect(0, 0, hackerCanvas.width, hackerCanvas.height);
+            drawUnifiedGrid(hackerCtx, hackerCanvas, margins);
+            drawAxisLabels(hackerCtx, hackerCanvas, margins, 'Frequenza Relativa');
+            hackerScores = new Array(numHackers).fill(0);
+            hackerScoresAtPosition = new Array(numHackers).fill(0);
+
+            for (let hackerIndex = 0; hackerIndex < numHackers; hackerIndex++) {
+                let score = 0;
+                hackerCtx.strokeStyle = hackerColors[hackerIndex % hackerColors.length];
+                hackerCtx.lineWidth = 1.5;
+                hackerCtx.beginPath();
+                hackerCtx.moveTo(margins.left, hackerCanvas.height / 2);
+
+                for (let serverIndex = 1; serverIndex <= numServers; serverIndex++) {
+                    const prevX = margins.left + ((serverIndex - 1) * ((hackerCanvas.width - margins.left - margins.right) / numServers));
+                    const currX = margins.left + (serverIndex * ((hackerCanvas.width - margins.left - margins.right) / numServers));
+                    const prevY = hackerCanvas.height / 2 - ((score / serverIndex) * (hackerCanvas.height - margins.top - margins.bottom) / 2);
+
+                    hackerCtx.lineTo(prevX, prevY);
+
+                    if (randomProbability() > hackProbability) {
+                        score++;
+                    } else {
+                        score--;
+                    }
+
+                    const currY = hackerCanvas.height / 2 - ((score / serverIndex) * (hackerCanvas.height - margins.top - margins.bottom) / 2);
+                    hackerCtx.lineTo(currX, currY);
+
+                    if (serverIndex === parseInt(document.getElementById('histogramPosition').value)) {
+                        hackerScoresAtPosition[hackerIndex] = score / serverIndex;
+                    }
+                }
+                hackerCtx.stroke();
+                hackerScores[hackerIndex] = score / numServers;
+            }
+        }
+
+        function drawAbsoluteHistogram(serverIndex, scoresArray) {
+            const histogramStartX = margins.left + (serverIndex * ((hackerCanvas.width - margins.left - margins.right) / numServers));
+            let scoreCounts = new Array(2 * numServers + 1).fill(0);
+            scoresArray.forEach(score => {
+                scoreCounts[score + numServers]++;
+            });
+
+            for (let score = -numServers; score <= numServers; score++) {
+                const count = scoreCounts[score + numServers];
+                if (count > 0) {
+                    const barHeight = ((hackerCanvas.height - margins.top - margins.bottom) / (2 * numServers)) - 2;
+                    const startY = hackerCanvas.height - margins.bottom - ((numServers - score) * (hackerCanvas.height - margins.top - margins.bottom) / (2 * numServers));
+
+                    for (let i = 0; i < count; i++) {
+                        const barX = histogramStartX + i * 10;
+                        hackerCtx.fillStyle = 'green';
+                        hackerCtx.fillRect(barX, startY, 8, barHeight);
+                        hackerCtx.strokeStyle = 'black';
+                        hackerCtx.strokeRect(barX, startY, 8, barHeight);
+                    }
+                }
+            }
+        }
+
+        function drawRelativeHistogram(serverIndex, scoresArray) {
+            const histogramStartX = margins.left + (serverIndex * ((hackerCanvas.width - margins.left - margins.right) / numServers));
+            let scoreCounts = new Array(21).fill(0);
+            scoresArray.forEach(score => {
+                const index = Math.round((score + 1) * 10);
+                scoreCounts[index]++;
+            });
+
+            for (let i = 0; i < scoreCounts.length; i++) {
+                const count = scoreCounts[i];
+                if (count > 0) {
+                    const relativeScore = (i / 10) - 1;
+                    const barHeight = ((hackerCanvas.height - margins.top - margins.bottom) / 20) - 2;
+                    const startY = hackerCanvas.height / 2 - (relativeScore * (hackerCanvas.height - margins.top - margins.bottom) / 2);
+
+                    for (let j = 0; j < count; j++) {
+                        const barX = histogramStartX + j * 5;
+                        hackerCtx.fillStyle = 'green';
+                        hackerCtx.fillRect(barX, startY, 4, barHeight);
+                        hackerCtx.strokeStyle = 'black';
+                        hackerCtx.strokeRect(barX, startY, 4, barHeight);
+                    }
+                }
+            }
+        }
+
+        function calculateMean(scores) {
+            const sum = scores.reduce((acc, val) => acc + val, 0);
+            return sum / scores.length;
+        }
+
+        function calculateVariance(scores, mean) {
+            const sumOfSquares = scores.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0);
+            return sumOfSquares / scores.length;
+        }
+
+        function displayStatsAtStep(step, scores, elementId) {
+            const mean = calculateMean(scores);
+            const variance = calculateVariance(scores, mean);
+            document.getElementById(elementId).innerText = `Step ${step}: Mean = ${mean.toFixed(2)}, Variance = ${variance.toFixed(2)}`;
+        }
+
+        function updateGraph() {
+            numHackers = parseInt(document.getElementById('numHackers').value);
+            numServers = parseInt(document.getElementById('numServers').value);
+            hackProbability = parseFloat(document.getElementById('hackProbability').value);
+
+            if (currentFrequencyMode === 'assoluta') {
+                drawHackerGraph();
+                drawAbsoluteHistogram(parseInt(document.getElementById('histogramPosition').value), hackerScoresAtPosition);
+                drawAbsoluteHistogram(numServers, hackerScores);
+            } else if (currentFrequencyMode === 'relativa') {
+                drawRelativeHackerGraph();
+                drawRelativeHistogram(parseInt(document.getElementById('histogramPosition').value), hackerScoresAtPosition);
+                drawRelativeHistogram(numServers, hackerScores);
+            }
+
+            const serverAtPosition = parseInt(document.getElementById('histogramPosition').value);
+            displayStatsAtStep(serverAtPosition, hackerScoresAtPosition, 'meanVarianceStep');
+            displayStatsAtStep(numServers, hackerScores, 'meanVarianceFinal');
+        }
+
+        function setFrequencyMode(mode) {
+            currentFrequencyMode = mode;
+            updateGraph();
+        }
+
+        updateGraph();
+    </script>
+</body>
+</html>
