@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Part 2 - Codifica Numerica e Analisi</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        input[type="text"], input[type="number"] {
+            width: calc(100% - 20px);
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .output {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        canvas {
+            margin-top: 20px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<h1>Codifica Numerica e Analisi</h1>
+<div class="container">
+    <label for="inputText">Testo originale:</label>
+    <input type="text" id="inputText" placeholder="Inserisci il testo">
+    <label for="baseValue">Valore di N (N > 26):</label>
+    <input type="number" id="baseValue" placeholder="Inserisci N (es. 10)" value="10">
+    <label for="primeValue">Valore di P (primo > 26):</label>
+    <input type="number" id="primeValue" placeholder="Inserisci P (es. 37)" value="37">
+    <button onclick="analyzeText()">Esegui Analisi</button>
+    <div class="output" id="results"></div>
+    <canvas id="originalDistribution" width="600" height="300"></canvas>
+    <canvas id="encodedDistribution" width="600" height="300"></canvas>
+</div>
+
+<script>
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+
+    // Conversione in rappresentazione numerica
+    function textToNumeric(text) {
+        return Array.from(text.toLowerCase())
+            .filter(char => alphabet.includes(char))
+            .map(char => alphabet.indexOf(char));
+    }
+
+    // Calcolo esponenziale modulo
+    function modularExponentiation(base, exp, mod) {
+        let result = 1;
+        base = base % mod;
+        while (exp > 0) {
+            if (exp % 2 === 1) result = (result * base) % mod;
+            exp = Math.floor(exp / 2);
+            base = (base * base) % mod;
+        }
+        return result;
+    }
+
+    // Calcolo frequenze
+    function calculateFrequencies(array, range) {
+        const freq = Array(range).fill(0);
+        array.forEach(num => freq[num]++);
+        return freq.map(f => f / array.length);
+    }
+
+    // Calcolo entropia
+    function calculateEntropy(frequencies) {
+        return frequencies.reduce((entropy, p) => {
+            if (p > 0) entropy -= p * Math.log2(p);
+            return entropy;
+        }, 0);
+    }
+
+    // Visualizzazione istogramma
+    function drawHistogram(frequencies, canvasId, title) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const barWidth = canvas.width / frequencies.length;
+        const maxFrequency = Math.max(...frequencies);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = '16px Arial';
+        ctx.fillText(title, 10, 20);
+
+        for (let i = 0; i < frequencies.length; i++) {
+            const barHeight = (frequencies[i] / maxFrequency) * (canvas.height - 50);
+            ctx.fillStyle = '#007BFF';
+            ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 2, barHeight);
+            ctx.fillStyle = '#000';
+            ctx.fillText(i, i * barWidth + barWidth / 4, canvas.height - 5);
+        }
+    }
+
+    // Analisi del testo
+    function analyzeText() {
+        const text = document.getElementById('inputText').value;
+        const baseValue = parseInt(document.getElementById('baseValue').value);
+        const primeValue = parseInt(document.getElementById('primeValue').value);
+
+        if (!text || baseValue <= 26 || !isPrime(primeValue)) {
+            alert('Inserisci un testo valido, N > 26, e un P primo valido.');
+            return;
+        }
+
+        const numericValues = textToNumeric(text);
+        const encodedValues = numericValues.map(num =>
+            modularExponentiation(baseValue, num, primeValue)
+        );
+
+        const originalFrequencies = calculateFrequencies(numericValues, 26);
+        const encodedFrequencies = calculateFrequencies(encodedValues, primeValue);
+
+        const originalEntropy = calculateEntropy(originalFrequencies);
+        const encodedEntropy = calculateEntropy(encodedFrequencies);
+
+        drawHistogram(originalFrequencies, 'originalDistribution', 'Distribuzione Originale');
+        drawHistogram(encodedFrequencies, 'encodedDistribution', 'Distribuzione Codificata');
+
+        document.getElementById('results').innerHTML = `
+                <strong>Testo Originale:</strong> ${text}<br>
+                <strong>Rappresentazione Numerica:</strong> ${numericValues.join(', ')}<br>
+                <strong>Valori Codificati:</strong> ${encodedValues.join(', ')}<br>
+                <strong>Entropia Originale:</strong> ${originalEntropy.toFixed(2)}<br>
+                <strong>Entropia Codificata:</strong> ${encodedEntropy.toFixed(2)}
+            `;
+    }
+
+    // Controllo se un numero è primo
+    function isPrime(num) {
+        if (num <= 1) return false;
+        if (num <= 3) return true;
+        if (num % 2 === 0 || num % 3 === 0) return false;
+        for (let i = 5; i * i <= num; i += 6) {
+            if (num % i === 0 || num % (i + 2) === 0) return false;
+        }
+        return true;
+    }
+</script>
+</body>
+</html>
