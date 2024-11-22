@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cifrario di Cesare e Decriptazione</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+        input[type="text"], input[type="number"] {
+            width: calc(100% - 20px);
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            max-width: 100%;
+        }
+        .output {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background-color: #f4f4f9;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+<h1>Cifrario di Cesare e Decriptazione</h1>
+
+<!-- Sezione 1: Applicazione del Cifrario di Cesare -->
+<div class="container section">
+    <h2>1. Applicazione del Cifrario di Cesare</h2>
+    <label for="caesarInputText">Testo:</label>
+    <input type="text" id="caesarInputText" placeholder="Inserisci il testo">
+    <label for="shiftValue">Shift:</label>
+    <input type="number" id="shiftValue" placeholder="Inserisci lo shift" value="3">
+    <button onclick="applyCaesarCipher()">Applica</button>
+    <div class="output" id="caesarOutput"></div>
+</div>
+
+<!-- Sezione 2: Istogrammi -->
+<div class="container section">
+    <h2>2. Istogrammi</h2>
+    <label for="histogramInputText">Testo cifrato:</label>
+    <input type="text" id="histogramInputText" placeholder="Inserisci il testo cifrato">
+    <button onclick="showHistograms()">Genera Istogrammi</button>
+    <canvas id="cipherHistogram" width="600" height="400"></canvas>
+    <canvas id="italianHistogram" width="600" height="400"></canvas>
+</div>
+
+<!-- Sezione 3: Decriptazione con KL -->
+<div class="container section">
+    <h2>3. Decriptazione con KL</h2>
+    <label for="decryptionInputText">Testo cifrato:</label>
+    <input type="text" id="decryptionInputText" placeholder="Inserisci il testo cifrato">
+    <button onclick="identifyShift()">Decripta</button>
+    <div class="output" id="decryptionOutput">
+        <strong>Shift Identificato:</strong> <span id="calculatedShift"></span><br>
+        <strong>Distanza KL:</strong> <span id="calculatedKL"></span><br>
+        <strong>Testo Decifrato:</strong> <span id="decodedText"></span>
+    </div>
+</div>
+
+<script>
+    const italianFrequencies = {
+        A: 10.49,
+        B: 0.81,
+        C: 3.29,
+        D: 3.41,
+        E: 11.79,
+        F: 0.84,
+        G: 1.64,
+        H: 0.77,
+        I: 9.96,
+        J: 0.12,
+        K: 0.03,
+        L: 5.26,
+        M: 2.51,
+        N: 6.73,
+        O: 8.76,
+        P: 2.49,
+        Q: 0.52,
+        R: 6.52,
+        S: 5.38,
+        T: 6.87,
+        U: 3.33,
+        V: 2.10,
+        W: 0.00,
+        X: 0.10,
+        Y: 0.00,
+        Z: 0.39
+    };
+
+    const italianTopLetters = Object.keys(italianFrequencies)
+        .sort((a, b) => italianFrequencies[b] - italianFrequencies[a]);
+
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+
+    // Funzione per cifrare o decifrare il testo
+    function caesarCipher(text, shift) {
+        const alphabetUpper = alphabet.toUpperCase();
+        let result = '';
+
+        for (let char of text) {
+            if (alphabet.includes(char)) {
+                let index = (alphabet.indexOf(char) + shift) % 26;
+                if (index < 0) index += 26;
+                result += alphabet[index];
+            } else if (alphabetUpper.includes(char)) {
+                let index = (alphabetUpper.indexOf(char) + shift) % 26;
+                if (index < 0) index += 26;
+                result += alphabetUpper[index];
+            } else {
+                result += char;
+            }
+        }
+
+        return result;
+    }
+
+    // Sezione 1: Applicazione del Cifrario di Cesare
+    function applyCaesarCipher() {
+        const text = document.getElementById('caesarInputText').value;
+        const shift = parseInt(document.getElementById('shiftValue').value);
+        const result = caesarCipher(text, shift);
+        document.getElementById('caesarOutput').textContent = `${result}`;
+    }
+
+    // Funzione per calcolare le frequenze delle lettere
+    function calculateFrequencies(text) {
+        const frequencies = Array(26).fill(0);
+        for (let char of text.toLowerCase()) {
+            if (alphabet.includes(char)) {
+                frequencies[alphabet.indexOf(char)]++;
+            }
+        }
+        return frequencies;
+    }
+
+    // Funzione per disegnare un istogramma
+    function drawHistogram(frequencies, canvasId, isItalian = false) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const data = isItalian
+            ? Object.values(italianFrequencies)
+            : frequencies;
+        const maxFrequency = Math.max(...data);
+        const barWidth = canvas.width / alphabet.length;
+        const scale = canvas.height / maxFrequency;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < alphabet.length; i++) {
+            const x = i * barWidth;
+            const barHeight = data[i] * scale;
+            ctx.fillStyle = isItalian ? '#28a745' : '#007BFF';
+            ctx.fillRect(x, canvas.height - barHeight, barWidth - 2, barHeight);
+            ctx.fillStyle = '#000';
+            ctx.font = '12px Arial';
+            ctx.fillText(alphabet[i].toUpperCase(), x + barWidth / 4, canvas.height - 5);
+        }
+    }
+
+    // Sezione 2: Genera Istogrammi
+    function showHistograms() {
+        const text = document.getElementById('histogramInputText').value;
+        const frequencies = calculateFrequencies(text);
+        drawHistogram(frequencies, 'cipherHistogram');
+        drawHistogram(Object.values(italianFrequencies), 'italianHistogram', true);
+    }
+
+    // Calcola la distanza di KL
+    function calculateKLDivergence(cipherFreq, cipherTotal, italianFreq) {
+        const epsilon = 1e-10;
+        const cipherProbabilities = cipherFreq.map(freq => freq / cipherTotal);
+        const italianProbabilities = Object.values(italianFreq).map(freq => freq / 100 + epsilon);
+
+        return cipherProbabilities.reduce((kl, p, i) => {
+            const q = italianProbabilities[i];
+            if (p > 0) kl += p * Math.log2(p / q);
+            return kl;
+        }, 0);
+    }
+
+    // Sezione 3: Decriptazione con KL
+    function identifyShift() {
+        const text = document.getElementById('decryptionInputText').value;
+        if (!text) {
+            alert('Inserisci un testo cifrato.');
+            return;
+        }
+
+        const frequencies = calculateFrequencies(text);
+        const totalLetters = frequencies.reduce((sum, count) => sum + count, 0);
+
+        // Identifica la lettera più frequente nel testo cifrato
+        const mostFrequentCipherLetter = alphabet[frequencies.indexOf(Math.max(...frequencies))];
+
+        let bestShift = null;
+        let bestKL = Infinity;
+        let bestDecryptedText = '';
+
+        // Prova le lettere più frequenti in italiano
+        for (let italianLetter of italianTopLetters) {
+            const shift =
+                (alphabet.indexOf(mostFrequentCipherLetter) - alphabet.indexOf(italianLetter.toLowerCase()) + 26) % 26;
+
+            // Decifra il testo
+            const decryptedText = caesarCipher(text, -shift);
+            const newFrequencies = calculateFrequencies(decryptedText);
+            const newTotalLetters = newFrequencies.reduce((sum, count) => sum + count, 0);
+            const kl = calculateKLDivergence(newFrequencies, newTotalLetters, italianFrequencies);
+
+            if (kl < bestKL) {
+                bestKL = kl;
+                bestShift = shift;
+                bestDecryptedText = decryptedText;
+            }
+
+            if (kl < 1) break; // Interrompe se si trova una KL accettabile
+        }
+
+        // Mostra i risultati
+        document.getElementById('calculatedShift').textContent = bestShift !== null ? bestShift : 'Nessuno trovato';
+        document.getElementById('calculatedKL').textContent = bestKL.toFixed(2);
+        document.getElementById('decodedText').textContent = bestKL < 1 ? bestDecryptedText : 'Nessun risultato valido';
+    }
+</script>
+</body>
+</html>
