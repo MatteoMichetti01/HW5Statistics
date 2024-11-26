@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Part 2 - Codifica Numerica e Analisi</title>
+    <title>RSA Semplificato con Istogramma Migliorato</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
-            padding: 0;
             background-color: #f4f4f9;
             color: #333;
         }
@@ -56,36 +55,29 @@
     </style>
 </head>
 <body>
-<h1>Codifica Numerica e Analisi</h1>
+<h1>Codifica RSA Semplificata</h1>
 <div class="container">
     <label for="inputText">Testo originale:</label>
     <input type="text" id="inputText" placeholder="Inserisci il testo">
-    <label for="baseValue">Valore di N (N > 26):</label>
-    <input type="number" id="baseValue" placeholder="Inserisci N (es. 10)" value="10">
-    <label for="primeValue">Valore di P (primo > 26):</label>
-    <input type="number" id="primeValue" placeholder="Inserisci P (es. 37)" value="37">
-    <button onclick="analyzeText()">Esegui Analisi</button>
+    <label for="baseValue">Valore di N (es. 7):</label>
+    <input type="number" id="baseValue" placeholder="Inserisci N" value="7">
+    <label for="primeValue">Valore di P (primo, es. 37):</label>
+    <input type="number" id="primeValue" placeholder="Inserisci P" value="37">
+    <button onclick="encodeText()">Esegui Codifica</button>
     <div class="output" id="results"></div>
-    <canvas id="originalDistribution" width="600" height="300"></canvas>
-    <canvas id="encodedDistribution" width="600" height="300"></canvas>
+    <canvas id="encodedDistribution" width="800" height="400"></canvas>
 </div>
 
 <script>
     const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-
-    // Conversione in rappresentazione numerica
-    function textToNumeric(text) {
-        return Array.from(text.toLowerCase())
-            .filter(char => alphabet.includes(char))
-            .map(char => alphabet.indexOf(char));
-    }
-
-    // Calcolo esponenziale modulo
+    
     function modularExponentiation(base, exp, mod) {
         let result = 1;
         base = base % mod;
         while (exp > 0) {
-            if (exp % 2 === 1) result = (result * base) % mod;
+            if (exp % 2 === 1) {
+                result = (result * base) % mod;
+            }
             exp = Math.floor(exp / 2);
             base = (base * base) % mod;
         }
@@ -95,11 +87,11 @@
     // Calcolo frequenze
     function calculateFrequencies(array, range) {
         const freq = Array(range).fill(0);
-        array.forEach(num => freq[num]++);
-        return freq.map(f => f / array.length);
+        array.forEach(value => freq[value]++);
+        return freq.map(count => count / array.length); // Frequenze relative
     }
 
-    // Calcolo entropia
+    // Calcolo dell'entropia di Shannon
     function calculateEntropy(frequencies) {
         return frequencies.reduce((entropy, p) => {
             if (p > 0) entropy -= p * Math.log2(p);
@@ -107,61 +99,73 @@
         }, 0);
     }
 
-    // Visualizzazione istogramma
+
     function drawHistogram(frequencies, canvasId, title) {
         const canvas = document.getElementById(canvasId);
         const ctx = canvas.getContext('2d');
-        const barWidth = canvas.width / frequencies.length;
+        const barWidth = canvas.width / frequencies.length - 5; // Spazio tra le barre
         const maxFrequency = Math.max(...frequencies);
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Titolo dell'istogramma
         ctx.font = '16px Arial';
         ctx.fillText(title, 10, 20);
 
+        // Disegno delle barre
         for (let i = 0; i < frequencies.length; i++) {
             const barHeight = (frequencies[i] / maxFrequency) * (canvas.height - 50);
+
+            // Barre colorate
             ctx.fillStyle = '#007BFF';
-            ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 2, barHeight);
+            ctx.fillRect(i * (barWidth + 5), canvas.height - barHeight, barWidth, barHeight);
+
+            // Etichette sull'asse X
             ctx.fillStyle = '#000';
-            ctx.fillText(i, i * barWidth + barWidth / 4, canvas.height - 5);
+            ctx.font = '12px Arial';
+            ctx.save();
+            ctx.translate(i * (barWidth + 5) + barWidth / 2, canvas.height);
+            ctx.rotate(-Math.PI / 4); // Rotazione di 45°
+            ctx.fillText(i, 0, 0);
+            ctx.restore();
         }
     }
 
-    // Analisi del testo
-    function analyzeText() {
+    // Funzione principale di codifica
+    function encodeText() {
         const text = document.getElementById('inputText').value;
         const baseValue = parseInt(document.getElementById('baseValue').value);
         const primeValue = parseInt(document.getElementById('primeValue').value);
 
-        if (!text || baseValue <= 26 || !isPrime(primeValue)) {
-            alert('Inserisci un testo valido, N > 26, e un P primo valido.');
+        // Validazione
+        if (!text || baseValue <= 1 || primeValue <= 26 || !isPrime(primeValue)) {
+            alert('Inserisci un testo valido, un valore N > 1 e un P primo valido.');
             return;
         }
 
-        const numericValues = textToNumeric(text);
-        const encodedValues = numericValues.map(num =>
-            modularExponentiation(baseValue, num, primeValue)
-        );
+        // Calcolo dei valori codificati
+        const encodedValues = Array.from(text.toLowerCase())
+            .filter(char => alphabet.includes(char))
+            .map(char => modularExponentiation(baseValue, alphabet.indexOf(char), primeValue));
 
-        const originalFrequencies = calculateFrequencies(numericValues, 26);
-        const encodedFrequencies = calculateFrequencies(encodedValues, primeValue);
+        // Calcolo delle frequenze
+        const frequencies = calculateFrequencies(encodedValues, primeValue);
 
-        const originalEntropy = calculateEntropy(originalFrequencies);
-        const encodedEntropy = calculateEntropy(encodedFrequencies);
+        // Calcolo dell'entropia
+        const entropy = calculateEntropy(frequencies);
 
-        drawHistogram(originalFrequencies, 'originalDistribution', 'Distribuzione Originale');
-        drawHistogram(encodedFrequencies, 'encodedDistribution', 'Distribuzione Codificata');
+        // Disegna l'istogramma
+        drawHistogram(frequencies, 'encodedDistribution', 'Distribuzione Codificata');
 
+        // Mostra i risultati
         document.getElementById('results').innerHTML = `
                 <strong>Testo Originale:</strong> ${text}<br>
-                <strong>Rappresentazione Numerica:</strong> ${numericValues.join(', ')}<br>
-                <strong>Valori Codificati:</strong> ${encodedValues.join(', ')}<br>
-                <strong>Entropia Originale:</strong> ${originalEntropy.toFixed(2)}<br>
-                <strong>Entropia Codificata:</strong> ${encodedEntropy.toFixed(2)}
+                <strong>Valori Codificati (N^k mod P):</strong> ${encodedValues.join(', ')}<br>
+                <strong>Entropia di Shannon:</strong> ${entropy.toFixed(2)}
             `;
     }
 
-    // Controllo se un numero è primo
+    // Funzione per verificare se un numero è primo
     function isPrime(num) {
         if (num <= 1) return false;
         if (num <= 3) return true;
