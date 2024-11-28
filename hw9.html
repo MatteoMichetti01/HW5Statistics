@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation with Sampling Variances</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        canvas {
+            border: 1px solid black;
+            margin: 20px auto;
+        }
+        #probabilitySelectors {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+<h1>Simulation with Sampling Variances</h1>
+
+<label for="numIntervals">Number of Intervals:</label>
+<select id="numIntervals">
+    <option value="2">2</option>
+    <option value="3">3</option>
+    <option value="4">4</option>
+    <option value="5">5</option>
+    <option value="6">6</option>
+    <option value="7">7</option>
+    <option value="8">8</option>
+    <option value="9">9</option>
+    <option value="10">10</option>
+</select>
+<button id="generateSelectorsBtn">Set Probabilities</button>
+
+<div id="probabilitySelectors"></div>
+
+<h2>Sampling Distribution of Averages</h2>
+<label for="sampleSizeInput">Sample Size (n):</label>
+<input id="sampleSizeInput" type="number" min="1" value="20">
+<br>
+<label for="numSamplesInput">Number of Samples (m):</label>
+<input id="numSamplesInput" type="number" min="1" value="1000">
+<br>
+<button id="computeDistributionBtn">Compute Sampling Distribution</button>
+<div id="results"></div>
+<canvas id="samplingChart" width="800" height="400"></canvas>
+
+<h2>Sampling Distribution of Variances</h2>
+<button id="computeVarianceDistributionBtn">Compute Variance Distribution</button>
+<div id="varianceResults"></div>
+<canvas id="varianceChart" width="800" height="400"></canvas>
+
+<script>
+    const numIntervalsSelect = document.getElementById('numIntervals');
+    const generateSelectorsBtn = document.getElementById('generateSelectorsBtn');
+    const probabilitySelectorsDiv = document.getElementById('probabilitySelectors');
+    const sampleSizeInput = document.getElementById('sampleSizeInput');
+    const numSamplesInput = document.getElementById('numSamplesInput');
+    const computeDistributionBtn = document.getElementById('computeDistributionBtn');
+    const samplingChart = document.getElementById('samplingChart');
+    const resultsDiv = document.getElementById('results');
+    const computeVarianceDistributionBtn = document.getElementById('computeVarianceDistributionBtn');
+    const varianceChart = document.getElementById('varianceChart');
+    const varianceResultsDiv = document.getElementById('varianceResults');
+
+    let probabilities = [];
+
+    // Generate probability inputs
+    generateSelectorsBtn.addEventListener('click', () => {
+        probabilitySelectorsDiv.innerHTML = '';
+        const numIntervals = parseInt(numIntervalsSelect.value, 10);
+
+        for (let i = 0; i < numIntervals; i++) {
+            const row = document.createElement('div');
+            row.innerHTML = `
+                    <label>Interval ${i + 1} Probability:</label>
+                    <input type="number" step="0.01" min="0" max="1" class="probability" value="${(1 / numIntervals).toFixed(2)}">
+                `;
+            probabilitySelectorsDiv.appendChild(row);
+        }
+    });
+
+    // Parse probabilities
+    function parseProbabilities() {
+        probabilities = [];
+        const inputs = document.querySelectorAll('.probability');
+        let sum = 0;
+
+        for (const input of inputs) {
+            const value = parseFloat(input.value);
+            if (isNaN(value) || value < 0 || value > 1) {
+                alert('Invalid probabilities. Ensure all are between 0 and 1.');
+                return false;
+            }
+            probabilities.push(value);
+            sum += value;
+        }
+
+        if (Math.abs(sum - 1) > 1e-6) {
+            alert(`Probabilities must sum to 1. Current sum: ${sum.toFixed(5)}`);
+            return false;
+        }
+        return true;
+    }
+
+    // Compute sampling distribution of averages
+    computeDistributionBtn.addEventListener('click', () => {
+        if (!parseProbabilities()) return;
+
+        const sampleSize = parseInt(sampleSizeInput.value, 10);
+        const numSamples = parseInt(numSamplesInput.value, 10);
+
+        if (isNaN(sampleSize) || sampleSize <= 0 || isNaN(numSamples) || numSamples <= 0) {
+            alert('Sample size and number of samples must be positive integers.');
+            return;
+        }
+
+        const sampleAverages = [];
+        for (let i = 0; i < numSamples; i++) {
+            let sampleSum = 0;
+
+            for (let j = 0; j < sampleSize; j++) {
+                const rand = Math.random();
+                let interval = 0;
+                let cumulativeProbability = 0;
+
+                for (let k = 0; k < probabilities.length; k++) {
+                    cumulativeProbability += probabilities[k];
+                    if (rand < cumulativeProbability) {
+                        interval = k + 1;
+                        break;
+                    }
+                }
+                sampleSum += interval;
+            }
+            sampleAverages.push(sampleSum / sampleSize);
+        }
+
+        const mean = sampleAverages.reduce((sum, avg) => sum + avg, 0) / numSamples;
+        const variance =
+            sampleAverages.reduce((sum, avg) => sum + Math.pow(avg - mean, 2), 0) / numSamples;
+
+        resultsDiv.innerHTML = `
+                <p><strong>Mean of Sampling Averages:</strong> ${mean.toFixed(5)}</p>
+                <p><strong>Variance of Sampling Averages:</strong> ${variance.toFixed(5)}</p>
+            `;
+
+        drawChart(samplingChart, sampleAverages, '#87CEEB');
+    });
+
+    // Compute sampling distribution of variances
+    computeVarianceDistributionBtn.addEventListener('click', () => {
+        if (!parseProbabilities()) return;
+
+        const sampleSize = parseInt(sampleSizeInput.value, 10);
+        const numSamples = parseInt(numSamplesInput.value, 10);
+
+        if (isNaN(sampleSize) || sampleSize <= 0 || isNaN(numSamples) || numSamples <= 0) {
+            alert('Sample size and number of samples must be positive integers.');
+            return;
+        }
+
+        const sampleVariances = [];
+        for (let i = 0; i < numSamples; i++) {
+            const sample = [];
+
+            for (let j = 0; j < sampleSize; j++) {
+                const rand = Math.random();
+                let interval = 0;
+                let cumulativeProbability = 0;
+
+                for (let k = 0; k < probabilities.length; k++) {
+                    cumulativeProbability += probabilities[k];
+                    if (rand < cumulativeProbability) {
+                        interval = k + 1;
+                        break;
+                    }
+                }
+                sample.push(interval);
+            }
+
+            const mean = sample.reduce((sum, val) => sum + val, 0) / sampleSize;
+            const variance =
+                sample.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / sampleSize;
+            sampleVariances.push(variance);
+        }
+
+        const meanOfVariances = sampleVariances.reduce((sum, varVal) => sum + varVal, 0) / numSamples;
+        const varianceOfVariances =
+            sampleVariances.reduce((sum, varVal) => sum + Math.pow(varVal - meanOfVariances, 2), 0) / numSamples;
+
+        varianceResultsDiv.innerHTML = `
+                <p><strong>Mean of Sampling Variances:</strong> ${meanOfVariances.toFixed(5)}</p>
+                <p><strong>Variance of Sampling Variances:</strong> ${varianceOfVariances.toFixed(5)}</p>
+            `;
+
+        drawChart(varianceChart, sampleVariances, '#FFD700');
+    });
+
+    // Draw histogram
+    function drawChart(canvas, data, color) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const min = Math.min(...data);
+        const max = Math.max(...data);
+        const bins = 30;
+        const binWidth = (max - min) / bins;
+        const frequencies = Array(bins).fill(0);
+
+        for (const value of data) {
+            const bin = Math.floor((value - min) / binWidth);
+            frequencies[Math.min(bin, bins - 1)]++;
+        }
+
+        const maxFrequency = Math.max(...frequencies);
+
+        const barWidth = canvas.width / bins;
+        for (let i = 0; i < bins; i++) {
+            const barHeight = (frequencies[i] / maxFrequency) * canvas.height;
+            ctx.fillStyle = color;
+            ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 2, barHeight);
+
+            ctx.fillStyle = 'black';
+            ctx.font = '10px Arial';
+            const label = (min + i * binWidth).toFixed(2);
+            ctx.fillText(label, i * barWidth, canvas.height - 5);
+        }
+    }
+</script>
+</body>
+</html>
