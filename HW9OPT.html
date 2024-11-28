@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES-Inspired Toy Encryption</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+        textarea {
+            width: 80%;
+            height: 100px;
+            margin: 10px 0;
+        }
+        table {
+            width: 50%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<h1>AES-Inspired Encryption</h1>
+
+<h2>Step 1: Generate Substitution Key</h2>
+<button id="generateKeyBtn">Generate Key</button>
+<div id="substitutionKey"></div>
+
+<h2>Step 2: Input and Encrypt a Message</h2>
+<textarea id="inputMessage" placeholder="Enter your message (e.g., HELLO WORLD)"></textarea>
+<button id="encryptBtn">Encrypt Message</button>
+<p><strong>Encrypted Message:</strong> <span id="encryptedMessage"></span></p>
+
+<h2>Step 3: Analyze Frequency Distribution and Entropy</h2>
+<div id="analysis"></div>
+
+<h2>Step 4: Apply Permutation</h2>
+<button id="permuteBtn">Apply Permutation</button>
+<p><strong>Permuted Message:</strong> <span id="permutedMessage"></span></p>
+
+<script>
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    let substitutionKey = {};
+
+    // Generate random substitution key
+    document.getElementById('generateKeyBtn').addEventListener('click', () => {
+        const shuffled = [...alphabet].sort(() => Math.random() - 0.5);
+        substitutionKey = Object.fromEntries(alphabet.map((letter, i) => [letter, shuffled[i]]));
+        const keyTable = `<table>
+                <tr><th>Original</th>${alphabet.map(letter => `<td>${letter}</td>`).join('')}</tr>
+                <tr><th>Substituted</th>${alphabet.map(letter => `<td>${substitutionKey[letter]}</td>`).join('')}</tr>
+            </table>`;
+        document.getElementById('substitutionKey').innerHTML = keyTable;
+    });
+
+    // Encrypt message using substitution key
+    document.getElementById('encryptBtn').addEventListener('click', () => {
+        const inputMessage = document.getElementById('inputMessage').value.toUpperCase();
+        const encryptedMessage = inputMessage.split('')
+            .map(char => substitutionKey[char] || char)
+            .join('');
+        document.getElementById('encryptedMessage').textContent = encryptedMessage;
+
+        analyzeFrequency(inputMessage, encryptedMessage);
+    });
+
+    // Analyze frequency and calculate entropy
+    function analyzeFrequency(original, encrypted) {
+        const originalFrequency = calculateFrequency(original.replace(/[^A-Z]/g, ''));
+        const encryptedFrequency = calculateFrequency(encrypted.replace(/[^A-Z]/g, ''));
+
+        const originalEntropy = calculateEntropy(originalFrequency, original.length);
+        const encryptedEntropy = calculateEntropy(encryptedFrequency, encrypted.length);
+
+        const analysisHTML = `
+                <h3>Frequency Distribution</h3>
+                <table>
+                    <tr>
+                        <th>Letter</th>
+                        ${alphabet.map(letter => `<th>${letter}</th>`).join('')}
+                    </tr>
+                    <tr>
+                        <th>Original</th>
+                        ${alphabet.map(letter => `<td>${originalFrequency[letter] || 0}</td>`).join('')}
+                    </tr>
+                    <tr>
+                        <th>Encrypted</th>
+                        ${alphabet.map(letter => `<td>${encryptedFrequency[letter] || 0}</td>`).join('')}
+                    </tr>
+                </table>
+                <h3>Entropy</h3>
+                <p><strong>Original Message Entropy:</strong> ${originalEntropy.toFixed(3)}</p>
+                <p><strong>Encrypted Message Entropy:</strong> ${encryptedEntropy.toFixed(3)}</p>
+            `;
+        document.getElementById('analysis').innerHTML = analysisHTML;
+    }
+
+    // Calculate letter frequency
+    function calculateFrequency(message) {
+        return [...message].reduce((freq, char) => {
+            freq[char] = (freq[char] || 0) + 1;
+            return freq;
+        }, {});
+    }
+
+    // Calculate entropy
+    function calculateEntropy(frequency, total) {
+        return Object.values(frequency).reduce((entropy, count) => {
+            const p = count / total;
+            return entropy - p * Math.log2(p);
+        }, 0);
+    }
+
+    // Apply permutation (reverse order)
+    document.getElementById('permuteBtn').addEventListener('click', () => {
+        const encryptedMessage = document.getElementById('encryptedMessage').textContent;
+        const permutedMessage = encryptedMessage.split('').reverse().join('');
+        document.getElementById('permutedMessage').textContent = permutedMessage;
+
+        analyzePermutation(permutedMessage);
+    });
+
+    // Analyze permutation effect
+    function analyzePermutation(permutedMessage) {
+        const permutedFrequency = calculateFrequency(permutedMessage.replace(/[^A-Z]/g, ''));
+        const permutedEntropy = calculateEntropy(permutedFrequency, permutedMessage.length);
+
+        const analysisHTML = `
+                <h3>Frequency Distribution After Permutation</h3>
+                <table>
+                    <tr>
+                        <th>Letter</th>
+                        ${alphabet.map(letter => `<th>${letter}</th>`).join('')}
+                    </tr>
+                    <tr>
+                        <th>Permuted</th>
+                        ${alphabet.map(letter => `<td>${permutedFrequency[letter] || 0}</td>`).join('')}
+                    </tr>
+                </table>
+                <h3>Entropy After Permutation</h3>
+                <p><strong>Permuted Message Entropy:</strong> ${permutedEntropy.toFixed(3)}</p>
+            `;
+        document.getElementById('analysis').innerHTML += analysisHTML;
+    }
+</script>
+</body>
+</html>
