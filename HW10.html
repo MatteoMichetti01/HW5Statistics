@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrali con Segmenti</title>
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #555;
+        }
+        select, input[type="number"], button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            background: #e7f5e7;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #c3e6c3;
+        }
+        .result p {
+            margin: 5px 0;
+            font-weight: bold;
+            color: #2d7a2d;
+        }
+        canvas {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>HW10</h1>
+    <form id="integralForm">
+        <label for="functionSelect">Scegli una funzione</label>
+        <select id="functionSelect">
+            <option value="linear">Lineare: f(x) = x</option>
+            <option value="quadratic">Quadratica: f(x) = x²</option>
+            <option value="cubic">Cubica: f(x) = x³</option>
+            <option value="sqrt">Radice quadrata: f(x) = √x</option>
+        </select>
+
+        <label for="calculationType">Tipo di calcolo</label>
+        <select id="calculationType">
+            <option value="riemann">Integrale Riemann</option>
+            <option value="lebesgue">Integrale Lebesgue</option>
+        </select>
+
+        <label for="intervalA">Inizio intervallo (a)</label>
+        <input type="number" id="intervalA" value="0" step="0.1">
+
+        <label for="intervalB">Fine intervallo (b)</label>
+        <input type="number" id="intervalB" value="1" step="0.1">
+
+        <label for="numIntervals">Numero di intervalli (n)</label>
+        <input type="number" id="numIntervals" value="10" step="1" min="1">
+
+        <button type="button" id="calculateBtn">Calcola</button>
+    </form>
+
+    <div class="result" id="resultContainer">
+        <p><strong>Risultati:</strong></p>
+        <p id="riemannResult">Integrale Riemann: -</p>
+        <p id="lebesgueResult">Integrale Lebesgue: -</p>
+        <p id="meanResult">Media: -</p>
+        <p id="varianceResult">Varianza: -</p>
+    </div>
+
+    <canvas id="functionCanvas" width="800" height="400"></canvas>
+</div>
+
+<script>
+    // Funzioni di densità e cumulativa inversa
+    const functions = {
+        linear: {
+            pdf: (x, a, b) => (x >= a && x <= b ? x : 0),
+            cdfInverse: (y, a, b) => a + y * (b - a),
+            max: (a, b) => b,
+        },
+        quadratic: {
+            pdf: (x, a, b) => (x >= a && x <= b ? x * x : 0),
+            cdfInverse: (y, a, b) => a + Math.sqrt(y) * (b - a),
+            max: (a, b) => b * b,
+        },
+        cubic: {
+            pdf: (x, a, b) => (x >= a && x <= b ? x * x * x : 0),
+            cdfInverse: (y, a, b) => a + Math.cbrt(y) * (b - a),
+            max: (a, b) => b * b * b,
+        },
+        sqrt: {
+            pdf: (x, a, b) => (x >= a && x <= b ? Math.sqrt(x) : 0),
+            cdfInverse: (y, a, b) => a + Math.pow(y, 2) * (b - a),
+            max: (a, b) => Math.sqrt(b),
+        }
+    };
+
+    function calculateMeanAndVariance(f, a, b, n) {
+        const dx = (b - a) / n;
+        let sum = 0;
+        let sumSq = 0;
+        for (let i = 0; i < n; i++) {
+            const x = a + i * dx;
+            const y = f(x);
+            sum += y;
+            sumSq += y * y;
+        }
+        const mean = sum / n;
+        const variance = (sumSq / n) - (mean * mean);
+        return { mean, variance };
+    }
+
+    // Disegna la funzione selezionata su un canvas
+    function drawFunction(ctx, f, a, b, n, width, height, calculationType) {
+        ctx.clearRect(0, 0, width, height);
+
+        const centerX = 50;
+        const centerY = height - 50;
+        ctx.beginPath();
+        ctx.moveTo(centerX, 0);
+        ctx.lineTo(centerX, height);
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.strokeStyle = "black";
+        ctx.stroke();
+
+        const dx = (b - a) / n;
+        ctx.beginPath();
+        for (let i = 0; i <= n; i++) {
+            const x = a + i * dx;
+            const y = f(x);
+            const canvasX = centerX + ((x - a) / (b - a)) * (width - 100);
+            const canvasY = centerY - (y / functions.quadratic.max(a, b)) * (height - 100);
+            if (i === 0) {
+                ctx.moveTo(canvasX, canvasY);
+            } else {
+                ctx.lineTo(canvasX, canvasY);
+            }
+        }
+        ctx.strokeStyle = "blue";
+        ctx.stroke();
+
+        const fillColor = calculationType === "riemann" ? "rgba(0, 0, 255, 0.2)" : "rgba(255, 0, 0, 0.2)";
+        ctx.fillStyle = fillColor;
+        for (let i = 0; i < n; i++) {
+            const x1 = a + i * dx;
+            const x2 = x1 + dx;
+            const y1 = calculationType === "riemann" ? f(x1) : f((x1 + x2) / 2);
+            const canvasX1 = centerX + ((x1 - a) / (b - a)) * (width - 100);
+            const canvasX2 = centerX + ((x2 - a) / (b - a)) * (width - 100);
+            const canvasY = centerY - (y1 / functions.quadratic.max(a, b)) * (height - 100);
+            ctx.fillRect(canvasX1, canvasY, canvasX2 - canvasX1, centerY - canvasY);
+        }
+    }
+
+    function riemannIntegral(f, a, b, n) {
+        const dx = (b - a) / n;
+        let sum = 0;
+        for (let i = 0; i < n; i++) {
+            const x = a + i * dx;
+            const y = f(x);
+            sum += y * dx;
+        }
+        return sum;
+    }
+
+    function lebesgueIntegral(f, F, yMin, yMax, n) {
+        const dy = (yMax - yMin) / n;
+        let sum = 0;
+        for (let i = 0; i < n; i++) {
+            const y1 = yMin + i * dy;
+            const y2 = y1 + dy;
+            const x1 = F(y1);
+            const x2 = F(y2);
+            sum += (x2 - x1) * y1;
+        }
+        return sum;
+    }
+
+    document.getElementById("calculateBtn").addEventListener("click", () => {
+        const funcType = document.getElementById("functionSelect").value;
+        const calculationType = document.getElementById("calculationType").value;
+        const a = parseFloat(document.getElementById("intervalA").value);
+        const b = parseFloat(document.getElementById("intervalB").value);
+        const n = parseInt(document.getElementById("numIntervals").value);
+
+        const selectedFunction = functions[funcType];
+        const pdf = (x) => selectedFunction.pdf(x, a, b);
+        const cdfInverse = (y) => selectedFunction.cdfInverse(y, a, b);
+        const yMin = 0;
+        const yMax = selectedFunction.max(a, b);
+
+        const riemannResult = riemannIntegral(pdf, a, b, n);
+        const lebesgueResult = lebesgueIntegral((y) => y, cdfInverse, yMin, yMax, n);
+        const { mean, variance } = calculateMeanAndVariance(pdf, a, b, n);
+
+        document.getElementById("riemannResult").textContent = `Integrale Riemann: ${riemannResult.toFixed(6)}`;
+        document.getElementById("lebesgueResult").textContent = `Integrale Lebesgue: ${lebesgueResult.toFixed(6)}`;
+        document.getElementById("meanResult").textContent = `Media: ${mean.toFixed(6)}`;
+        document.getElementById("varianceResult").textContent = `Varianza: ${variance.toFixed(6)}`;
+
+        const canvas = document.getElementById("functionCanvas");
+        const ctx = canvas.getContext("2d");
+        drawFunction(ctx, pdf, a, b, n, canvas.width, canvas.height, calculationType);
+    });
+</script>
+</body>
+</html>
