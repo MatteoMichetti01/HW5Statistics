@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSL/TLS Certificate Analysis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #f5f5f5;
+        }
+        .header {
+            margin-bottom: 20px;
+        }
+        .input-container {
+            margin-bottom: 30px;
+        }
+        .input-container input {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-container button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .input-container button:hover {
+            background-color: #45a049;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .chart-container, .stats-container {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .chart-container canvas {
+            width: 100%;
+            height: 300px;
+        }
+        .chart-title {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 10px;
+            gap: 10px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+<h1 class="header">SSL/TLS Certificate Analysis</h1>
+<div class="input-container">
+    <input type="text" id="domainInput" placeholder="Enter domain (e.g., google.com)">
+    <button onclick="startAnalysis()">Analyze</button>
+</div>
+
+<div class="dashboard">
+    <div class="chart-container">
+        <h3 class="chart-title">Certificate Issuer Distribution</h3>
+        <canvas id="issuerChart"></canvas>
+        <div id="issuerLegend" class="legend"></div>
+    </div>
+    <div class="chart-container">
+        <h3 class="chart-title">Validity Period Distribution</h3>
+        <canvas id="validityChart"></canvas>
+        <div id="validityLegend" class="legend"></div>
+    </div>
+    <div class="chart-container">
+        <h3 class="chart-title">Hashing Algorithm Distribution</h3>
+        <canvas id="hashChart"></canvas>
+        <div id="hashLegend" class="legend"></div>
+    </div>
+    <div class="stats-container">
+        <h3>Certificate Analysis Results</h3>
+        <p><strong>Mean Validity Duration:</strong> <span id="meanValidity">-</span> days</p>
+        <p><strong>Median Validity Duration:</strong> <span id="medianValidity">-</span> days</p>
+        <p><strong>Short-Lived Certificates (&lt;180 days):</strong> <span id="shortLived">-</span></p>
+        <p><strong>Long-Lived Certificates (&ge;180 days):</strong> <span id="longLived">-</span></p>
+    </div>
+</div>
+
+<script>
+    const MOCK_DATA = {
+        'google.com': {
+            issuerDistribution: { 'Google Trust Services': 50, 'DigiCert': 30, 'Other': 20 },
+            validityPeriods: [365, 400, 300, 500],
+            keyLengths: { '2048': 80, '4096': 20 },
+            hashingAlgorithms: { 'SHA-256': 70, 'SHA-1': 10, 'Unknown': 20 }
+        }
+    };
+
+    function getColors(count) {
+        return [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+            '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF9F40'
+        ].slice(0, count);
+    }
+
+    class PieChart {
+        constructor(canvas, data, title) {
+            this.ctx = canvas.getContext('2d');
+            this.data = data;
+            this.title = title;
+            this.colors = getColors(Object.keys(data).length);
+            this.centerX = canvas.width / 2;
+            this.centerY = canvas.height / 2;
+            this.radius = Math.min(this.centerX, this.centerY) * 0.8;
+        }
+
+        draw() {
+            let total = Object.values(this.data).reduce((a, b) => a + b, 0);
+            let startAngle = 0;
+            let i = 0;
+
+            Object.entries(this.data).forEach(([label, value]) => {
+                const sliceAngle = (value / total) * 2 * Math.PI;
+
+                // Draw slice
+                this.ctx.beginPath();
+                this.ctx.fillStyle = this.colors[i];
+                this.ctx.moveTo(this.centerX, this.centerY);
+                this.ctx.arc(this.centerX, this.centerY, this.radius, startAngle, startAngle + sliceAngle);
+                this.ctx.closePath();
+                this.ctx.fill();
+
+                // Draw label
+                const midAngle = startAngle + sliceAngle / 2;
+                const labelRadius = this.radius * 0.7;
+                const x = this.centerX + Math.cos(midAngle) * labelRadius;
+                const y = this.centerY + Math.sin(midAngle) * labelRadius;
+
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = '14px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+
+                // Add background for better readability
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                const textWidth = this.ctx.measureText(`${Math.round(value)}%`).width;
+                this.ctx.fillRect(x - textWidth / 2 - 5, y - 10, textWidth + 10, 20);
+
+                this.ctx.fillStyle = 'white';
+                this.ctx.fillText(`${Math.round(value)}%`, x, y);
+
+                startAngle += sliceAngle;
+                i++;
+            });
+
+            return this.colors;
+        }
+    }
+
+    class BarChart {
+        constructor(canvas, data, xLabel = '', yLabel = '', title = '') {
+            this.ctx = canvas.getContext('2d');
+            this.data = data;
+            this.padding = 40;
+            this.width = canvas.width - this.padding * 2;
+            this.height = canvas.height - this.padding * 2;
+            this.xLabel = xLabel;
+            this.yLabel = yLabel;
+            this.title = title;
+        }
+
+        draw() {
+            // Draw title
+            this.ctx.fillStyle = 'black';
+            this.ctx.font = '16px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(this.title, this.width / 2 + this.padding, this.padding - 10);
+
+            const values = Object.values(this.data);
+            const maxValue = Math.max(...values);
+            const barWidth = this.width / values.length * 0.8;
+            const spacing = this.width / values.length * 0.2;
+
+            // Draw axes
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.padding, this.padding);
+            this.ctx.lineTo(this.padding, this.height + this.padding);
+            this.ctx.lineTo(this.width + this.padding, this.height + this.padding);
+            this.ctx.stroke();
+
+            // Draw bars
+            let x = this.padding + spacing;
+            Object.entries(this.data).forEach(([label, value]) => {
+                const barHeight = (value / maxValue) * this.height;
+
+                this.ctx.fillStyle = '#36A2EB';
+                this.ctx.fillRect(x, this.height + this.padding - barHeight, barWidth, barHeight);
+
+                // Draw value
+                this.ctx.fillStyle = 'black';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(value, x + barWidth / 2, this.height + this.padding - barHeight - 5);
+
+                // Draw label
+                this.ctx.fillText(label, x + barWidth / 2, this.height + this.padding + 15);
+
+                x += barWidth + spacing;
+            });
+
+            // Draw axis labels
+            this.ctx.fillStyle = 'black';
+            this.ctx.font = '14px Arial';
+            this.ctx.textAlign = 'center';
+
+            // X-axis label
+            this.ctx.fillText(this.xLabel, this.width / 2 + this.padding, this.height + this.padding + 40);
+
+            // Y-axis label
+            this.ctx.save();
+            this.ctx.translate(this.padding - 30, this.height / 2 + this.padding);
+            this.ctx.rotate(-Math.PI / 2);
+            this.ctx.fillText(this.yLabel, 0, 0);
+            this.ctx.restore();
+        }
+    }
+
+    function createLegend(containerId, labels, colors) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+
+        labels.forEach((label, i) => {
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+
+            const color = document.createElement('div');
+            color.className = 'legend-color';
+            color.style.backgroundColor = colors[i];
+
+            const text = document.createElement('span');
+            text.textContent = label;
+
+            item.appendChild(color);
+            item.appendChild(text);
+            container.appendChild(item);
+        });
+    }
+
+    function startAnalysis() {
+        const domain = document.getElementById('domainInput').value.trim();
+        if (!domain) return alert('Please enter a domain');
+
+        const data = MOCK_DATA[domain] || null;
+        if (data) {
+            const analysis = analyzeCertificates(data);
+            renderResults(analysis);
+        } else {
+            alert('No data available for this domain');
+        }
+    }
+
+    function analyzeCertificates(data) {
+        const shortLived = data.validityPeriods.filter(p => p < 180).length;
+        const longLived = data.validityPeriods.filter(p => p >= 180).length;
+
+        return {
+            issuerDistribution: data.issuerDistribution,
+            validityPeriods: groupData(data.validityPeriods),
+            hashingAlgorithms: data.hashingAlgorithms,
+            meanValidity: (data.validityPeriods.reduce((a, b) => a + b, 0) / data.validityPeriods.length).toFixed(2),
+            medianValidity: calculateMedian(data.validityPeriods).toFixed(2),
+            shortLived,
+            longLived
+        };
+    }
+
+    function groupData(data) {
+        return data.reduce((acc, value) => {
+            acc[value] = (acc[value] || 0) + 1;
+            return acc;
+        }, {});
+    }
+
+    function calculateMedian(data) {
+        const sorted = [...data].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 === 0
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid];
+    }
+
+    function renderResults(analysis) {
+        document.getElementById('meanValidity').innerText = analysis.meanValidity;
+        document.getElementById('medianValidity').innerText = analysis.medianValidity;
+        document.getElementById('shortLived').innerText = analysis.shortLived;
+        document.getElementById('longLived').innerText = analysis.longLived;
+
+        // Clear and resize canvases
+        ['issuerChart', 'validityChart', 'hashChart'].forEach(id => {
+            const canvas = document.getElementById(id);
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Draw charts
+        const issuerPieChart = new PieChart(
+            document.getElementById('issuerChart'),
+            analysis.issuerDistribution
+        );
+        const issuerColors = issuerPieChart.draw();
+        createLegend('issuerLegend', Object.keys(analysis.issuerDistribution), issuerColors);
+
+        const validityChart = new BarChart(
+            document.getElementById('validityChart'),
+            analysis.validityPeriods,
+            'Validity Period (days)', // X-axis label
+            'Frequency', // Y-axis label
+            'Validity Period Distribution' // Title
+        );
+        validityChart.draw();
+
+        const hashPieChart = new PieChart(
+            document.getElementById('hashChart'),
+            analysis.hashingAlgorithms
+        );
+        const hashColors = hashPieChart.draw();
+        createLegend('hashLegend', Object.keys(analysis.hashingAlgorithms), hashColors);
+    }
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+        if (MOCK_DATA['google.com']) {
+            startAnalysis();
+        }
+    });
+
+    // Initial render
+    startAnalysis();
+</script>
+</body>
+</html>
